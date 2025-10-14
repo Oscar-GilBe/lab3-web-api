@@ -3,6 +3,7 @@ kotlin = "2.2.10"
 springBoot = "3.5.3"
 ktlint = "13.1.0"
 springmockk = "4.0.2"
+springdoc = "2.8.13"
 
 [plugins]
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin"}
@@ -20,3 +21,4 @@ spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-star
 ninjasquad-springmocck = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
 h2database-h2 = { module ="com.h2database:h2" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect"}
+springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }

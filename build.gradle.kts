@@ -23,6 +23,7 @@ dependencies {
     implementation(libs.spring.boot.starter.thymeleaf)
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.kotlin.reflect)
+    implementation(libs.springdoc.openapi.starter.webmvc.ui) // OpenAPI (Swagger) UI dependency
 
     runtimeOnly(libs.h2database.h2)
 
