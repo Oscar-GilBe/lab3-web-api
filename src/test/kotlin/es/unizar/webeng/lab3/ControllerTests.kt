@@ -48,7 +48,7 @@ class ControllerTests {
     @Test
     fun `POST is not safe and not idempotent`() {
         // POST is not idempotent - each call creates a new resource.
-        
+
         // Mock setup for POST test
         every {
             employeeRepository.save(any<Employee>())
