@@ -178,6 +178,80 @@ class IntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("Database Transaction Tests")
+    inner class TransactionTests {
+        @Test
+        fun `should rollback transaction on error`() {
+            // Save initial employee
+            repository.save(Employee("Initial", "Worker"))
+            val initialCount = repository.count()
+
+            // Attempt to create an invalid employee by violating @NotBlank constraint
+            val invalidEmployee = """{"name":"","role":""}"""
+
+            val response =
+                restTemplate.postForEntity(
+                    url("/employees"),
+                    createJsonEntity(invalidEmployee),
+                    String::class.java,
+                )
+
+            // Expecting a 400 Bad Request due to validation failure
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+
+            // Database should maintain consistency
+            val finalCount = repository.count()
+            assertThat(finalCount).isEqualTo(initialCount)
+        }
+
+        @Test
+        fun `should maintain data integrity across multiple operations`() {
+            // Create multiple employees in sequence
+            val names = listOf("Tom", "Jerry", "Spike", "Tyke")
+            val createdIds = mutableListOf<Long>() // Store created IDs for later verification
+
+            names.forEach { name ->
+                val json = """{"name":"$name","role":"Cartoon Character"}"""
+                val response =
+                    restTemplate.postForEntity(
+                        url("/employees"),
+                        createJsonEntity(json),
+                        Employee::class.java,
+                    )
+                createdIds.add(response.body!!.id!!)
+            }
+
+            // Verify all employees exist in database
+            val allEmployees = repository.findAll().toList()
+            assertThat(allEmployees.size).isEqualTo(names.size)
+            assertThat(allEmployees.map { it.name }).containsExactlyInAnyOrderElementsOf(names)
+
+            // Update one employee
+            val updateJson = """{"name":"Tom Cat","role":"Main Character"}"""
+            restTemplate.exchange(
+                url("/employees/${createdIds[0]}"),
+                HttpMethod.PUT,
+                createJsonEntity(updateJson),
+                Employee::class.java,
+            )
+
+            // Delete another employee (Jerry)
+            restTemplate.exchange(
+                url("/employees/${createdIds[1]}"),
+                HttpMethod.DELETE,
+                null,
+                Void::class.java,
+            )
+
+            // Verify final state
+            val finalEmployees = repository.findAll().toList()
+            assertThat(finalEmployees.size).isEqualTo(names.size - 1)
+            assertThat(finalEmployees.map { it.name }).containsExactlyInAnyOrder("Tom Cat", "Spike", "Tyke")
+            assertThat(finalEmployees.map { it.name }).doesNotContain("Jerry")
+        }
+    }
+
     // Helper to create JSON HttpEntity
     private fun createJsonEntity(json: String): HttpEntity<String> {
         val headers = HttpHeaders()

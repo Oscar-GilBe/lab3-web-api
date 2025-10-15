@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
+import jakarta.validation.constraints.NotBlank
 
 @Entity
 @Schema(description = "Employee entity representing a person working in the organization")
@@ -13,12 +14,14 @@ data class Employee(
         example = "John Doe",
         required = true,
     )
+    @field:NotBlank
     var name: String,
     @Schema(
         description = "Job role or position of the employee",
         example = "Manager",
         required = true,
     )
+    @field:NotBlank
     var role: String,
     @Schema(
         description = "Unique identifier for the employee. Auto-generated when creating via POST.",

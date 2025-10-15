@@ -22,3 +22,4 @@ ninjasquad-springmocck = { module = "com.ninja-squad:springmockk", version.ref =
 h2database-h2 = { module ="com.h2database:h2" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect"}
 springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
