@@ -1,0 +1,187 @@
+package es.unizar.webeng.lab3
+
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment
+import org.springframework.boot.test.web.client.TestRestTemplate
+import org.springframework.boot.test.web.server.LocalServerPort
+import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpMethod
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.test.context.ActiveProfiles
+
+/**
+ * Integration tests using a real H2 database.
+ * These tests verify the complete data flow from HTTP requests through the controller,
+ * service layer, and database persistence.
+ */
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+class IntegrationTest {
+    @LocalServerPort
+    private var port: Int = 0
+
+    // Inject a test HTTP client for making requests to the API
+    @Autowired
+    private lateinit var restTemplate: TestRestTemplate
+
+    @Autowired
+    private lateinit var repository: EmployeeRepository
+
+    private fun url(path: String) = "http://localhost:$port$path"
+
+    @BeforeEach
+    fun setup() {
+        // Clean database before each test
+        repository.deleteAll()
+    }
+
+    @Nested // Groups related tests
+    @DisplayName("Basic CRUD operations with real database")
+    inner class BasicCrudOperations {
+        @Test
+        fun `should create employee and persist to database`() {
+            val newEmployee = """
+                {
+                    "name": "John Doe",
+                    "role": "Developer"
+                }
+                """
+
+            val response =
+                restTemplate.postForEntity(
+                    url("/employees"),
+                    createJsonEntity(newEmployee),
+                    Employee::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
+            assertThat(response.body).isNotNull
+            assertThat(response.body!!.id).isNotNull
+            assertThat(response.body!!.name).isEqualTo("John Doe")
+            assertThat(response.body!!.role).isEqualTo("Developer")
+            assertThat(response.headers.location).isNotNull
+
+            // Verify data persisted in database
+            val savedEmployee = repository.findById(response.body!!.id!!)
+            assertThat(savedEmployee.isPresent).isTrue()
+            assertThat(savedEmployee.get().name).isEqualTo("John Doe")
+            assertThat(savedEmployee.get().role).isEqualTo("Developer")
+        }
+
+        @Test
+        fun `should retrieve all employees from database`() {
+            // Populate database with test data
+            repository.save(Employee("Alice", "Manager"))
+            repository.save(Employee("Bob", "Developer"))
+            repository.save(Employee("Charlie", "Designer"))
+
+            val response =
+                restTemplate.getForEntity(
+                    url("/employees"),
+                    Array<Employee>::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body).isNotNull
+            assertThat(response.body!!.size).isEqualTo(3)
+            assertThat(response.body!!.map { it.name }).containsExactlyInAnyOrder("Alice", "Bob", "Charlie")
+            assertThat(response.body!!.map { it.role }).containsExactlyInAnyOrder("Manager", "Developer", "Designer")
+        }
+
+        @Test
+        fun `should retrieve single employee by id from database`() {
+            val savedEmployee = repository.save(Employee("David", "Analyst"))
+
+            val response =
+                restTemplate.getForEntity(
+                    url("/employees/${savedEmployee.id}"),
+                    Employee::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body).isNotNull
+            assertThat(response.body!!.id).isEqualTo(savedEmployee.id)
+            assertThat(response.body!!.name).isEqualTo("David")
+            assertThat(response.body!!.role).isEqualTo("Analyst")
+        }
+
+        @Test
+        fun `should return 404 when employee not found in database`() {
+            val response =
+                restTemplate.getForEntity(
+                    url("/employees/999"),
+                    String::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+            // Verify error response structure
+            assertThat(response.body).contains("\"status\":404")
+            assertThat(response.body).contains("\"error\":\"Not Found\"")
+            assertThat(response.body).contains("\"path\":\"/employees/999\"")
+        }
+
+        @Test
+        fun `should update existing employee in database`() {
+            val savedEmployee = repository.save(Employee("Eve", "Junior Developer"))
+            val updatedData = """
+                {"name":"Eve Smith",
+                "role":"Senior Developer"
+                }
+                """
+
+            val response =
+                restTemplate.exchange(
+                    url("/employees/${savedEmployee.id}"),
+                    HttpMethod.PUT,
+                    createJsonEntity(updatedData),
+                    Employee::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body).isNotNull
+            assertThat(response.body!!.name).isEqualTo("Eve Smith")
+            assertThat(response.body!!.role).isEqualTo("Senior Developer")
+
+            // Verify update persisted in database
+            val updatedEmployee = repository.findById(savedEmployee.id!!)
+            assertThat(updatedEmployee.isPresent).isTrue()
+            assertThat(updatedEmployee.get().name).isEqualTo("Eve Smith")
+            assertThat(updatedEmployee.get().role).isEqualTo("Senior Developer")
+        }
+
+        @Test
+        fun `should delete employee from database`() {
+            val savedEmployee = repository.save(Employee("Grace", "Tester"))
+            val employeeId = savedEmployee.id!!
+
+            val response =
+                restTemplate.exchange(
+                    url("/employees/$employeeId"),
+                    HttpMethod.DELETE,
+                    null,
+                    Void::class.java, // No body expected
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NO_CONTENT)
+
+            // Verify deletion from database
+            val deletedEmployee = repository.findById(employeeId)
+            assertThat(deletedEmployee.isPresent).isFalse()
+        }
+    }
+
+    // Helper to create JSON HttpEntity
+    private fun createJsonEntity(json: String): HttpEntity<String> {
+        val headers = HttpHeaders()
+        headers.contentType = MediaType.APPLICATION_JSON
+        return HttpEntity(json, headers)
+    }
+}
