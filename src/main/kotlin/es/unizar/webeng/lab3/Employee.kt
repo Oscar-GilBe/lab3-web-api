@@ -14,14 +14,12 @@ data class Employee(
         required = true,
     )
     var name: String,
-
     @Schema(
         description = "Job role or position of the employee",
         example = "Manager",
         required = true,
     )
     var role: String,
-
     @Schema(
         description = "Unique identifier for the employee. Auto-generated when creating via POST.",
         example = "1",
