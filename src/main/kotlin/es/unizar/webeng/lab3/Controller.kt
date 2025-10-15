@@ -390,7 +390,7 @@ class EmployeeController(
                     repository.save(employee)
                     HttpStatus.OK to employee
                 }.orElseGet {
-                    // newEmployee.id = id
+                    newEmployee.id = id
                     repository.save(newEmployee)
                     HttpStatus.CREATED to newEmployee
                 }

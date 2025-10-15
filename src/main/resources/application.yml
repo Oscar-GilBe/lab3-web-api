@@ -4,3 +4,19 @@ spring:
     properties:
       hibernate:
         globally_quoted_identifiers: true
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs # Custom path for OpenAPI docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html # Custom path for Swagger UI
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha # Sort tags alphabetically
+    doc-expansion: none
+    display-request-duration: true
+    show-extensions: true
+    show-common-extensions: true
+  show-actuator: false # Disable actuator endpoints in Swagger UI
