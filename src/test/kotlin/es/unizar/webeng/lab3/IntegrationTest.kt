@@ -551,6 +551,157 @@ class IntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("API response validation tests")
+    inner class ApiResponseValidationTests {
+        @Test
+        fun `should return correct HTTP status codes`() {
+            // POST - Created
+            val createResponse =
+                restTemplate.postForEntity(
+                    url("/employees"),
+                    createJsonEntity("""{"name":"Status test","role":"Tester"}"""),
+                    Employee::class.java,
+                )
+            assertThat(createResponse.statusCode).isEqualTo(HttpStatus.CREATED)
+
+            val secondCreateResponse =
+                restTemplate.postForEntity(
+                    url("/employees"),
+                    createJsonEntity("""{"name":"Status test","role":"Tester"}"""),
+                    Employee::class.java,
+                )
+            assertThat(secondCreateResponse.statusCode).isEqualTo(HttpStatus.CREATED)
+
+            // GET - OK
+            val getResponse =
+                restTemplate.getForEntity(
+                    url("/employees/${createResponse.body!!.id}"),
+                    Employee::class.java,
+                )
+            assertThat(getResponse.statusCode).isEqualTo(HttpStatus.OK)
+
+            // PUT - OK
+            val putResponse =
+                restTemplate.exchange(
+                    url("/employees/${createResponse.body!!.id}"),
+                    HttpMethod.PUT,
+                    createJsonEntity("""{"name":"Updated","role":"Tester"}"""),
+                    Employee::class.java,
+                )
+            assertThat(putResponse.statusCode).isEqualTo(HttpStatus.OK)
+
+            // DELETE - No Content
+            val deleteResponse =
+                restTemplate.exchange(
+                    url("/employees/${createResponse.body!!.id}"),
+                    HttpMethod.DELETE,
+                    null,
+                    Void::class.java,
+                )
+            assertThat(deleteResponse.statusCode).isEqualTo(HttpStatus.NO_CONTENT)
+
+            // GET after DELETE - Not Found
+            val notFoundResponse =
+                restTemplate.getForEntity(
+                    url("/employees/${createResponse.body!!.id}"),
+                    String::class.java,
+                )
+            assertThat(notFoundResponse.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @Test
+        fun `should include location header on resource creation`() {
+            val response =
+                restTemplate.postForEntity(
+                    url("/employees"),
+                    createJsonEntity("""{"name":"Location test","role":"Developer"}"""),
+                    Employee::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
+            assertThat(response.headers.location).isNotNull
+            assertThat(response.headers.location!!.toString()) // response.headers.location is URI type
+                .contains("/employees/${response.body!!.id}")
+        }
+
+        @Test
+        fun `should return proper Content-Type headers`() {
+            repository.save(Employee("Content type test", "Developer"))
+
+            val response =
+                restTemplate.getForEntity(
+                    url("/employees"),
+                    Array<Employee>::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+
+            val employees: Array<Employee> = response.body!!
+            assertThat(employees).isNotNull
+            assertThat(employees.size).isEqualTo(1)
+            assertThat(employees[0].name).isEqualTo("Content type test")
+            assertThat(employees[0].role).isEqualTo("Developer")
+
+            assertThat(response.headers.contentType).isNotNull
+            assertThat(response.headers.contentType.toString()) // contentType is MediaType type
+                .isEqualTo(MediaType.APPLICATION_JSON_VALUE) // "application/json"
+        }
+    }
+
+    @Nested
+    @DisplayName("Edge cases and error handling")
+    inner class EdgeCasesTests {
+        @Test
+        fun `should handle empty database query`() {
+            val response =
+                restTemplate.getForEntity(
+                    url("/employees"),
+                    Array<Employee>::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body).isNotNull
+            assertThat(response.body!!.size).isEqualTo(0)
+            assertThat(response.headers.contentType.toString()).isEqualTo(MediaType.APPLICATION_JSON_VALUE)
+        }
+
+        @Test
+        fun `should handle delete of non-existent employee`() {
+            val response =
+                restTemplate.exchange(
+                    url("/employees/999"),
+                    HttpMethod.DELETE,
+                    null,
+                    Void::class.java,
+                )
+
+            // DELETE is idempotent. Should succeed even if resource doesn't exist
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NO_CONTENT)
+            assertThat(response.body).isNull()
+        }
+
+        @Test
+        fun `should handle very long employee names`() {
+            val longName = "A".repeat(255)
+            val json = """{"name":"$longName","role":"Tester"}"""
+
+            val response =
+                restTemplate.postForEntity(
+                    url("/employees"),
+                    createJsonEntity(json),
+                    Employee::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
+            val saved = repository.findById(response.body!!.id!!)
+            assertThat(saved.isPresent).isTrue()
+            assertThat(saved.get().name).hasSize(255)
+            assertThat(saved.get().name).isEqualTo(longName)
+            assertThat(saved.get().role).isEqualTo("Tester")
+        }
+    }
+
     // Helper to create JSON HttpEntity
     private fun createJsonEntity(json: String): HttpEntity<String> {
         val headers = HttpHeaders()

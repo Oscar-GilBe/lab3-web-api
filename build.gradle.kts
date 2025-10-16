@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "es.unizar.webeng"
-version = "2024-SNAPSHOT"
+version = "2025-SNAPSHOT"
 
 repositories {
     mavenCentral()
