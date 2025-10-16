@@ -16,6 +16,9 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 
 /**
  * Integration tests using a real H2 database.
@@ -249,6 +252,302 @@ class IntegrationTest {
             assertThat(finalEmployees.size).isEqualTo(names.size - 1)
             assertThat(finalEmployees.map { it.name }).containsExactlyInAnyOrder("Tom Cat", "Spike", "Tyke")
             assertThat(finalEmployees.map { it.name }).doesNotContain("Jerry")
+        }
+    }
+
+    @Nested
+    @DisplayName("Data persistence tests")
+    inner class DataPersistenceTests {
+        @Test
+        fun `should persist employee data correctly with all fields`() {
+            val employeeJson = """{"name":"Complete data test","role":"QA engineer"}"""
+
+            val response =
+                restTemplate.postForEntity(
+                    url("/employees"),
+                    createJsonEntity(employeeJson),
+                    Employee::class.java,
+                )
+
+            val createdId = response.body!!.id!!
+
+            // Retrieve from database directly
+            val dbEmployee = repository.findById(createdId)
+            assertThat(dbEmployee.isPresent).isTrue()
+
+            val employee = dbEmployee.get()
+            assertThat(employee.id).isEqualTo(createdId)
+            assertThat(employee.name).isEqualTo("Complete data test")
+            assertThat(employee.role).isEqualTo("QA engineer")
+        }
+
+        @Test
+        fun `should handle special characters in employee data`() {
+            val specialNames =
+                listOf(
+                    "O'Brien",
+                    "José García",
+                    "李明",
+                    "ドラゴンボール",
+                    "Müller-Schmidt",
+                )
+
+            specialNames.forEach { name ->
+                val json = """{"name":"$name","role":"International employee"}"""
+                val response =
+                    restTemplate.postForEntity(
+                        url("/employees"),
+                        createJsonEntity(json),
+                        Employee::class.java,
+                    )
+
+                assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
+
+                // Verify persistence
+                val createdId = response.body!!.id!!
+
+                // Retrieve from database directly
+                val dbEmployee = repository.findById(createdId)
+                assertThat(dbEmployee.isPresent).isTrue()
+
+                val employee = dbEmployee.get()
+                assertThat(employee.id).isEqualTo(createdId)
+                assertThat(employee.name).isEqualTo(name)
+                assertThat(employee.role).isEqualTo("International employee")
+            }
+        }
+
+        @Test
+        fun `should persist and retrieve large dataset`() {
+            // Create 100000 employees
+            val employees =
+                (1..100000).map { i ->
+                    repository.save(Employee("Employee $i", "Role $i"))
+                }
+
+            // Verify all persisted
+            val count = repository.count()
+            assertThat(count).isEqualTo(100000L)
+
+            // Retrieve via API
+            val response =
+                restTemplate.getForEntity(
+                    url("/employees"),
+                    Array<Employee>::class.java,
+                )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body).isNotNull
+            assertThat(response.body!!.size).isEqualTo(100000)
+            assertThat(response.body!!.map { it.name }).containsExactlyInAnyOrder(*employees.map { it.name }.toTypedArray())
+            assertThat(response.body!!.map { it.role }).containsExactlyInAnyOrder(*employees.map { it.role }.toTypedArray())
+        }
+    }
+
+    @Nested
+    @DisplayName("Concurrent access tests")
+    inner class ConcurrentAccessTests {
+        @Test
+        fun `should handle concurrent read operations`() {
+            // Prepare test data
+            val employee = repository.save(Employee("Concurrent test", "Worker"))
+            val employeeId = employee.id!!
+
+            // Perform concurrent reads
+            val futures =
+                (1..100).map {
+                    CompletableFuture.supplyAsync {
+                        // launches an asynchronous task on a different thread
+                        restTemplate.getForEntity(
+                            url("/employees/$employeeId"),
+                            Employee::class.java,
+                        )
+                    }
+                }
+
+            // Wait for all to complete
+            val results = futures.map { it.join() }
+
+            // Verify all succeeded
+            results.forEach { response ->
+                assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+                assertThat(response.body!!.id).isEqualTo(employeeId)
+                assertThat(response.body!!.name).isEqualTo("Concurrent test")
+                assertThat(response.body!!.role).isEqualTo("Worker")
+            }
+        }
+
+        @Test
+        fun `should handle concurrent write operations`() {
+            val latch = CountDownLatch(5) // To wait for all threads to finish before assertions
+            val executor = Executors.newFixedThreadPool(5) // pool of 5 threads
+            val results = mutableListOf<Employee?>()
+
+            // Create 5 employees concurrently
+            repeat(5) { i ->
+                executor.submit {
+                    // submit a task to the executor
+                    try {
+                        val json = """{"name":"Concurrent employee $i","role":"Worker $i"}"""
+                        val response =
+                            restTemplate.postForEntity(
+                                url("/employees"),
+                                createJsonEntity(json),
+                                Employee::class.java,
+                            )
+                        synchronized(results) {
+                            // synchronize access to shared list (exclusion mutua)
+                            results.add(response.body)
+                        }
+                    } finally {
+                        latch.countDown() // decrement the latch count
+                    }
+                }
+            }
+
+            latch.await() // wait for all threads to finish
+            executor.shutdown()
+
+            // Verify all employees were created
+            assertThat(results.size).isEqualTo(5)
+            assertThat(results.all { it != null && it.id != null }).isTrue()
+            assertThat(results.map { it!!.name }).containsExactlyInAnyOrderElementsOf((0..4).map { "Concurrent employee $it" })
+            assertThat(results.map { it!!.role }).containsExactlyInAnyOrderElementsOf((0..4).map { "Worker $it" })
+
+            // Verify in database
+            val dbCount = repository.count()
+            assertThat(dbCount).isEqualTo(5L)
+        }
+
+        @Test
+        fun `should handle concurrent updates to same employee`() {
+            val employee = repository.save(Employee("Update test", "Initial role"))
+            val employeeId = employee.id!!
+
+            val latch = CountDownLatch(3) // To wait for all threads to finish before assertions
+            val executor = Executors.newFixedThreadPool(3) // pool of 3 threads
+
+            // Perform 3 concurrent updates
+            val roles = listOf("Role A", "Role B", "Role C")
+            roles.forEach { role ->
+                executor.submit {
+                    try {
+                        val json = """{"name":"Update test","role":"$role"}"""
+                        restTemplate.exchange(
+                            url("/employees/$employeeId"),
+                            HttpMethod.PUT,
+                            createJsonEntity(json),
+                            Employee::class.java,
+                        )
+                    } finally {
+                        latch.countDown() // decrement the latch count
+                    }
+                }
+            }
+
+            latch.await() // wait for all threads to finish
+            executor.shutdown()
+
+            // Verify employee exists with one of three possible roles
+            val finalEmployee = repository.findById(employeeId)
+            assertThat(finalEmployee.isPresent).isTrue()
+            assertThat(finalEmployee.get().id).isEqualTo(employeeId)
+            assertThat(finalEmployee.get().name).isEqualTo("Update test")
+            assertThat(finalEmployee.get().role).isIn(roles)
+        }
+
+        @Test
+        fun `should handle mixed concurrent operations`() {
+            var allEmployees = repository.findAll().toList()
+            assertThat(allEmployees.size).isEqualTo(0)
+
+            val initialEmployee = repository.save(Employee("Mixed operations", "Worker"))
+            val employeeId = initialEmployee.id!!
+
+            val latch = CountDownLatch(6) // To wait for all threads to finish before assertions
+            val executor = Executors.newFixedThreadPool(6) // pool of 6 threads
+
+            // 2 reads, 2 updates, 1 create, 1 delete attempt
+            executor.submit {
+                try {
+                    restTemplate.getForEntity(url("/employees/$employeeId"), Employee::class.java)
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            executor.submit {
+                try {
+                    restTemplate.getForEntity(url("/employees/$employeeId"), Employee::class.java)
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            executor.submit {
+                try {
+                    val json = """{"name":"Updated A","role":"New role A"}"""
+                    restTemplate.exchange(
+                        url("/employees/$employeeId"),
+                        HttpMethod.PUT,
+                        createJsonEntity(json),
+                        Employee::class.java,
+                    )
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            executor.submit {
+                try {
+                    val json = """{"name":"Updated B","role":"New role B"}"""
+                    restTemplate.exchange(
+                        url("/employees/$employeeId"),
+                        HttpMethod.PUT,
+                        createJsonEntity(json),
+                        Employee::class.java,
+                    )
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            executor.submit {
+                try {
+                    val json = """{"name":"New employee","role":"New worker"}"""
+                    restTemplate.postForEntity(
+                        url("/employees"),
+                        createJsonEntity(json),
+                        Employee::class.java,
+                    )
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            executor.submit {
+                try {
+                    // Delete the employee
+                    restTemplate.exchange(
+                        url("/employees/$employeeId"),
+                        HttpMethod.DELETE,
+                        null,
+                        Void::class.java,
+                    )
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            latch.await() // wait for all threads to finish
+            executor.shutdown()
+
+            // Verify database state is consistent
+            allEmployees = repository.findAll().toList()
+            assertThat(allEmployees.map { it.id }).doesNotContainNull().doesNotHaveDuplicates()
+            assertThat(allEmployees.map { it.name }).anyMatch { it.startsWith("New employee") }
+            // Depending on timing, the initial employee may have been deleted
+            assertThat(allEmployees.size).isBetween(1, 2)
         }
     }
 
