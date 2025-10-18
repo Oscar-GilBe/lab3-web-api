@@ -276,13 +276,15 @@ class EmployeeController(
             This demonstrates idempotent behavior, calling this endpoint multiple times with 
             the same data results in the same final state (one employee with the specified data).
             
-            TWO SCENARIOS:
+            THREE SCENARIOS:
             1. Update (200 OK): If employee exists, updates their data
             2. Create (201 Created): If employee doesn't exist, creates new employee
+            3. Internal server error (500): If there is an unexpected error during processing
             
             RESPONSE:
             - HTTP 200 (OK) if existing employee was updated
             - HTTP 201 (Created) if new employee was created
+            - HTTP 500 (Internal Server Error) for unexpected errors
             - Content-Location header contains URI of the resource
             
             USE CASE:
@@ -328,6 +330,28 @@ class EmployeeController(
                                     "name": "New Employee",
                                     "role": "Analyst",
                                     "id": 10
+                                }
+                                """,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            ApiResponse(
+                responseCode = "500",
+                description = "Internal server error occurred",
+                content = [
+                    Content(
+                        mediaType = MediaType.APPLICATION_JSON_VALUE,
+                        examples = [
+                            ExampleObject(
+                                name = "Internal server error",
+                                value = """
+                                {
+                                    "timestamp": "2025-10-14T19:30:00.000+00:00",
+                                    "status": 500,
+                                    "error": "Internal Server Error",
+                                    "path": "/employees/1"
                                 }
                                 """,
                             ),

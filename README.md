@@ -23,8 +23,10 @@ A minimal Spring Boot + Kotlin starter for Lab 3. Complete the tasks in `docs/GU
 ```
 
 ## Project structure
-- `src/main/kotlin/es/unizar/webeng/lab3`: application code (`Application.kt`, `Controller.kt`, `Employee.kt`, `EmployeeRepository.kt`)
-- `src/test/kotlin/es/unizar/webeng/lab3`: tests (`ControllerTests.kt`)
+- `src/main/kotlin/es/unizar/webeng/lab3`: application code (`Application.kt`, `Controller.kt`, `Employee.kt`, `EmployeeRepository.kt`, `OpenApiConfig.kt`)
+- `src/main/resources`: application resources (`application.properties`)
+- `src/test/kotlin/es/unizar/webeng/lab3`: tests (`ControllerTests.kt`, `IntegrationTests.kt`)
+- `src/test/resources`: test resources (`application-test.properties`)
 - `docs/GUIDE.md`: assignment instructions
 
 ## Assignment tasks
@@ -42,6 +44,71 @@ See `docs/GUIDE.md` for detailed steps:
 ./gradlew test
 ```
 
+## OpenAPI/Swagger Documentation
+### Access Points
+
+#### Swagger UI (Interactive Documentation)
+
+```
+http://localhost:8080/swagger-ui.html
+```
+
+**Features:**
+
+- Interactive API testing interface
+- Try out API calls directly from browser
+- View request/response examples
+- Explore all endpoints and schemas
+
+#### OpenAPI Specification (JSON)
+
+```
+http://localhost:8080/api-docs
+```
+
+**Use Cases:**
+
+- Generate client SDKs
+- Import into API testing tools (Postman, Insomnia)
+- API contract testing
+
+### Interactive Features
+
+#### Try It Out
+1. Start the application with `./gradlew bootRun`
+2. Navigate to http://localhost:8080/swagger-ui.html
+3. Expand any endpoint
+4. Click **"Try it out"**
+5. Modify parameters/body
+6. Click **"Execute"**
+7. View response
+
+## Integration Tests
+
+These tests use a real H2 in-memory database to verify the complete data flow from HTTP requests through the controller layer to database persistence.
+
+### Running the Tests
+
+#### Run Integration Tests Only (22 tests)
+
+```bash
+./gradlew test --tests "es.unizar.webeng.lab3.IntegrationTest"
+```
+
+#### Run All Tests
+
+```bash
+./gradlew test
+```
+
+#### View Test Reports
+
+After running tests, open:
+```
+build/reports/tests/test/index.html
+```
+
+
 ## Bonus opportunities
 Be the first to complete **at least two** of the following tasks to earn a bonus:
 
@@ -51,7 +118,7 @@ Be the first to complete **at least two** of the following tasks to earn a bonus
 - **Goal**: Demonstrate understanding of API security principles and protect sensitive operations.
 - **Benefit**: Shows mastery of modern authentication/authorization patterns and API security best practices.
 
-### 2. **Implement RESTful API Documentation with OpenAPI/Swagger**
+### 2. **Implement RESTful API Documentation with OpenAPI/Swagger** ✅
 - **Description**: Add comprehensive API documentation using SpringDoc OpenAPI, including detailed descriptions of HTTP method semantics, request/response examples, and error scenarios.
 - **Implementation**: Document all endpoints with proper HTTP status codes, include examples for safe vs unsafe operations, and add interactive Swagger UI.
 - **Goal**: Create professional API documentation that explains the RESTful design principles.
@@ -81,7 +148,7 @@ Be the first to complete **at least two** of the following tasks to earn a bonus
 - **Goal**: Protect the API from abuse, overuse, and malicious attacks.
 - **Benefit**: Shows understanding of API protection strategies and production security concerns.
 
-### 7. **Add Integration Tests with Real Database**
+### 7. **Add Integration Tests with Real Database** ✅
 - **Description**: Create comprehensive integration tests that use a real database (H2 or PostgreSQL) to test the complete data flow.
 - **Implementation**: Test database transactions, verify data persistence, and test concurrent access scenarios.
 - **Goal**: Ensure the API works correctly with real data persistence.
