@@ -18,10 +18,6 @@ jobs:
           distribution: 'temurin'
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@e6e38bacfdf1a337459f332974bb2327a31aaf4b
-      - name: Start Spring Boot application
-        run: ./gradlew bootRun &
-      - name: Wait for application to start
-        run: sleep 20
       - name: Generate OpenAPI Client
         run: ./gradlew generateClient --no-daemon
       - name: Build and Test with Gradle

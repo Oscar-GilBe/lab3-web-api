@@ -69,11 +69,10 @@ tasks.register("downloadOpenApiSpec") {
     group = "openapi"
     description = "Download OpenAPI specification from running app"
 
-    val specFile = file("$buildDir/openapi-spec.yaml")
+    val specFile = file("openapi-spec.yaml")
     outputs.file(specFile)
 
     doLast {
-        specFile.parentFile.mkdirs()
         try {
             println("Downloading spec from http://localhost:8080/api-docs.yaml")
             URI("http://localhost:8080/api-docs.yaml").toURL().openStream().use { input ->
@@ -89,7 +88,7 @@ tasks.register("downloadOpenApiSpec") {
 // OpenAPI Generator configuration for generating clients
 openApiGenerate {
     generatorName = "kotlin" // Generate Kotlin client
-    inputSpec = file("$buildDir/openapi-spec.yaml").toURI().toString() // Path to downloaded spec
+    inputSpec = file("openapi-spec.yaml").toURI().toString() // Path to downloaded spec
     outputDir = "$buildDir/generated-client"
     apiPackage = "es.unizar.webeng.lab3.client.api"
     modelPackage = "es.unizar.webeng.lab3.client.model"

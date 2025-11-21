@@ -1,0 +1,322 @@
+openapi: 3.1.0
+info:
+  title: Employee Management REST API
+  description: |-
+    # Employee Management REST API
+    A RESTful API for managing employee records with full CRUD operations.
+
+    ## RESTful Design Principles
+    This API follows REST architectural constraints:
+
+    ### HTTP Method Semantics
+    - **GET**: Safe and idempotent - retrieves resources without side effects
+    - **POST**: Unsafe and non-idempotent - creates new resources
+    - **PUT**: Unsafe but idempotent - modifies state but repeated calls have the same effect
+    - **DELETE**: Unsafe but idempotent - removes resources
+
+    ### Resource-Based URLs
+    - `/employees` - Collection of all employees
+    - `/employees/{id}` - Individual employee resource
+
+    ### HTTP Status Codes
+    - **200 OK**: Successful PUT update
+    - **201 Created**: Successful POST or PUT creation
+    - **204 No Content**: Successful DELETE
+    - **404 Not Found**: Resource not found
+    - **500 Internal Server Error**: Server error
+
+    ### Idempotency
+    - **Idempotent operations** (GET, PUT, DELETE): Multiple identical requests have the same effect
+    - **Non-idempotent operations** (POST): Each request creates a new resource
+
+    ### Safety
+    - **Safe operations** (GET): Read-only, no state modification
+    - **Unsafe operations** (POST, PUT, DELETE): Modify server state
+
+    ## Features
+    - Create, read, update, and delete employee records
+    - RESTful resource-based URLs
+    - Proper HTTP status codes
+    - Location headers for created resources
+    - JSON request/response format
+    - Comprehensive error handling
+  contact:
+    name: Oscar-GilBe lab3-web-api repository
+    url: https://github.com/Oscar-GilBe/lab3-web-api
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+  version: 1.0.0
+servers:
+- url: http://localhost:8080
+  description: Local development server
+tags:
+- name: Employee management
+  description: RESTful API endpoints for employee CRUD operations
+paths:
+  /employees/{id}:
+    get:
+      tags:
+      - Employee management
+      summary: Retrieve a specific employee by ID
+      description: "\n            HTTP Method: GET\n            \n            PROPERTIES:\n\
+        \            - Safe: Does not modify server state\n            - Idempotent:\
+        \ Multiple identical requests produce the same result\n            \n    \
+        \        BEHAVIOR:\n            Retrieves a single employee resource by its\
+        \ unique identifier. This is a read-only \n            operation. Multiple\
+        \ calls with the same ID will return the same employee data \n           \
+        \ (unless modified by other operations).\n            \n            ERROR\
+        \ HANDLING:\n            Returns HTTP 404 (Not Found) if no employee exists\
+        \ with the specified ID.\n            \n            USE CASE:\n          \
+        \  Use this endpoint to retrieve details of a specific employee, for example\
+        \ to display \n            on an employee profile page.\n        "
+      operationId: one
+      parameters:
+      - name: id
+        in: path
+        description: Unique identifier of the employee
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Employee found and returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+              examples:
+                Found employee:
+                  description: Found employee
+                  value:
+                    name: John Doe
+                    role: Developer
+                    id: 1
+        "404":
+          description: Employee not found with the specified ID
+          content:
+            application/json:
+              examples:
+                Not found error:
+                  description: Not found error
+                  value:
+                    timestamp: 2025-10-14T19:30:00.000+00:00
+                    status: 404
+                    error: Not Found
+                    path: /employees/999
+    put:
+      tags:
+      - Employee management
+      summary: Update an existing employee
+      description: "\n            HTTP Method: PUT\n            \n            PROPERTIES:\n\
+        \            - Not Safe: Modifies server state\n            - Idempotent:\
+        \ Multiple identical requests produce the same final state\n            \n\
+        \            BEHAVIOR:\n            Updates an existing employee. This is\
+        \ an update-only operation. It will NOT create \n            a new employee\
+        \ if the ID doesn't exist. This demonstrates idempotent behavior: calling\
+        \ \n            this endpoint multiple times with the same data results in\
+        \ the same final state.\n            \n            SECURITY:\n           \
+        \ The server owns resource identifiers. This endpoint only updates existing\
+        \ resources \n            identified by the path parameter, preventing clients\
+        \ from controlling ID assignment.\n            \n            RESPONSE:\n \
+        \           - HTTP 200 (OK) if existing employee was updated\n           \
+        \ - HTTP 404 (Not Found) if employee doesn't exist\n            - Content-Location\
+        \ header contains URI of the resource\n            \n            USE CASE:\n\
+        \            Use this endpoint to update employee information for existing\
+        \ employees only.\n        "
+      operationId: replaceEmployee
+      parameters:
+      - name: id
+        in: path
+        description: ID of the employee to update
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        description: Updated employee data
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Employee"
+            examples:
+              Update to senior role:
+                description: Update to senior role
+                value:
+                  name: John Doe
+                  role: Senior Developer
+              Promotion to manager:
+                description: Promotion to manager
+                value:
+                  name: Jane Smith
+                  role: Engineering Manager
+        required: true
+      responses:
+        "200":
+          description: Existing employee successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+              examples:
+                Updated employee:
+                  description: Updated employee
+                  value:
+                    name: John Doe Updated
+                    role: Senior Developer
+                    id: 1
+        "404":
+          description: Employee not found with the specified ID
+          content:
+            application/json:
+              examples:
+                Not found error:
+                  description: Not found error
+                  value:
+                    timestamp: 2025-10-14T19:30:00.000+00:00
+                    status: 404
+                    error: Not Found
+                    path: /employees/999
+    delete:
+      tags:
+      - Employee management
+      summary: Delete an employee
+      description: "\n            HTTP Method: DELETE\n            \n            PROPERTIES:\n\
+        \            - Not Safe: Modifies server state by removing a resource\n  \
+        \          - Idempotent: Multiple identical requests produce the same result\
+        \ (resource is deleted)\n            \n            BEHAVIOR:\n           \
+        \ Removes an employee resource from the database. This demonstrates idempotent\
+        \ behavior, \n            calling this endpoint multiple times with the same\
+        \ ID has the same effect. The first \n            call deletes the employee,\
+        \ subsequent calls have no additional effect (employee is \n            already\
+        \ gone).\n            \n            RESPONSE:\n            Returns HTTP 204\
+        \ (No Content) with no body, indicating successful deletion.\n           \
+        \ \n            IDEMPOTENCY NOTE:\n            Even if the employee doesn't\
+        \ exist, returns 204. This is by design, the desired \n            state (employee\
+        \ not existing) is achieved regardless of whether it existed before.\n   \
+        \         \n            USE CASE:\n            Use this endpoint to permanently\
+        \ remove an employee from the system, for example \n            when an employee\
+        \ leaves the company.\n        "
+      operationId: deleteEmployee
+      parameters:
+      - name: id
+        in: path
+        description: ID of the employee to delete
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "204":
+          description: Employee successfully deleted (or didn't exist). No response
+            body.
+  /employees:
+    get:
+      tags:
+      - Employee management
+      summary: Retrieve all employees
+      description: "\n            HTTP Method: GET\n            \n            PROPERTIES:\n\
+        \            - Safe: Does not modify server state\n            - Idempotent:\
+        \ Multiple identical requests produce the same result\n            \n    \
+        \        BEHAVIOR:\n            Retrieves a list of all employee resources\
+        \ from the database. This is a read-only \n            operation that does\
+        \ not modify any data. Multiple calls will return the same result \n     \
+        \       (unless data is modified by other operations).\n            \n   \
+        \         USE CASE:\n            Use this endpoint to get a complete listing\
+        \ of all employees, for example to display \n            in a dashboard or\
+        \ export to a report.\n        "
+      operationId: all
+      responses:
+        "200":
+          description: Successfully retrieved all employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+              examples:
+                Multiple employees:
+                  description: Multiple employees
+                  value:
+                  - name: John Doe
+                    role: Developer
+                    id: 1
+                  - name: Jane Smith
+                    role: Manager
+                    id: 2
+                Empty list:
+                  description: Empty list
+                  value: []
+    post:
+      tags:
+      - Employee management
+      summary: Create a new employee
+      description: "\n            HTTP Method: POST\n            \n            PROPERTIES:\n\
+        \            - Not Safe: Modifies server state by creating a resource\n  \
+        \          - Not Idempotent: Each request creates a new employee with a unique\
+        \ ID\n            \n            BEHAVIOR:\n            Creates a new employee\
+        \ resource in the database. Each request generates a new unique \n       \
+        \     ID, even if the employee data is identical. This demonstrates non-idempotent\
+        \ behavior \n            (calling this endpoint twice with the same data creates\
+        \ two distinct employees).\n            \n            RESPONSE:\n        \
+        \    Returns HTTP 201 (Created) with a Location header pointing to the new\
+        \ resource.\n            \n            USE CASE:\n            Use this endpoint\
+        \ when adding a new employee to the system. The server assigns the ID.\n \
+        \       "
+      operationId: newEmployee
+      requestBody:
+        description: Employee data to create. ID will be auto-generated.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Employee"
+            examples:
+              New developer:
+                description: New developer
+                value:
+                  name: John Doe
+                  role: Developer
+              New manager:
+                description: New manager
+                value:
+                  name: Jane Smith
+                  role: Manager
+        required: true
+      responses:
+        "201":
+          description: Employee successfully created. Location header contains URI
+            of new resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+              examples:
+                Created employee:
+                  description: Created employee
+                  value:
+                    name: John Doe
+                    role: Developer
+                    id: 1
+components:
+  schemas:
+    Employee:
+      type: object
+      description: Employee entity representing a person working in the organization
+      properties:
+        name:
+          type: string
+          minLength: 1
+        role:
+          type: string
+          minLength: 1
+        id:
+          type: integer
+          format: int64
+      required:
+      - name
+      - role
