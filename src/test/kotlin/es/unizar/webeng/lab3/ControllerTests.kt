@@ -159,55 +159,78 @@ class ControllerTests {
     fun `PUT is idempotent but not safe`() {
         // PUT is idempotent but not safe - it modifies state but repeated calls have the same effect.
 
-        // Mock setup for PUT test
-        // First call simulates resource creation, second call simulates update
-        every {
-            employeeRepository.findById(1)
-        } answers {
-            Optional.empty()
-        } andThenAnswer {
-            Optional.of(Employee("Tom", "Manager", 1))
-        }
+        // Mock setup
+        // First create employee with POST, then update with PUT twice to test idempotency
 
-        // Simulate saving the employee
+        // Mock for POST. Saves with null id, returns with id=1
         every {
             employeeRepository.save(any<Employee>())
         } answers {
             Employee("Tom", "Manager", 1)
         }
 
+        // Create employee with POST first
         mvc
-            .put("/employees/1") {
+            .post("/employees") {
                 contentType = MediaType.APPLICATION_JSON
                 content = MANAGER_REQUEST_BODY("Tom")
                 accept = MediaType.APPLICATION_JSON
             }.andExpect {
                 status { isCreated() }
-                header { string("Content-Location", "http://localhost/employees/1") }
+                header { string("Location", "http://localhost/employees/1") }
                 content {
                     contentType(MediaType.APPLICATION_JSON)
                     json(MANAGER_RESPONSE_BODY("Tom", 1))
                 }
             }
 
+        // Now mock findById to return the existing employee
+        every {
+            employeeRepository.findById(1)
+        } returns Optional.of(Employee("Tom", "Manager", 1))
+
+        // Mock for PUT. When saving with id=1, return updated employee
+        every {
+            employeeRepository.save(match { it.id == 1L && it.name == "Tomas" })
+        } returns Employee("Tomas", "Manager", 1)
+
+        // First PUT. Update the employee name from Tom to Tomas
         mvc
             .put("/employees/1") {
                 contentType = MediaType.APPLICATION_JSON
-                content = MANAGER_REQUEST_BODY("Tom")
+                content = MANAGER_REQUEST_BODY("Tomas")
                 accept = MediaType.APPLICATION_JSON
             }.andExpect {
                 status { isOk() }
                 header { string("Content-Location", "http://localhost/employees/1") }
                 content {
                     contentType(MediaType.APPLICATION_JSON)
-                    json(MANAGER_RESPONSE_BODY("Tom", 1))
+                    json(MANAGER_RESPONSE_BODY("Tomas", 1))
                 }
             }
 
-        // Complete the verification for PUT test"
+        // Second PUT. Same update, demonstrating idempotency
+        mvc
+            .put("/employees/1") {
+                contentType = MediaType.APPLICATION_JSON
+                content = MANAGER_REQUEST_BODY("Tomas")
+                accept = MediaType.APPLICATION_JSON
+            }.andExpect {
+                status { isOk() }
+                header { string("Content-Location", "http://localhost/employees/1") }
+                content {
+                    contentType(MediaType.APPLICATION_JSON)
+                    json(MANAGER_RESPONSE_BODY("Tomas", 1))
+                }
+            }
+
+        // Complete the verification for PUT test
+        verify(exactly = 1) {
+            employeeRepository.save(match { it.id == null }) // POST creates with null id
+        }
         verify(exactly = 2) {
-            employeeRepository.findById(1)
-            employeeRepository.save(any<Employee>())
+            employeeRepository.findById(1) // PUT checks existence twice
+            employeeRepository.save(match { it.id == 1L && it.name == "Tomas" }) // PUT updates name twice
         }
 
         // These methods should NOT be called

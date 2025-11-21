@@ -171,6 +171,7 @@ class EmployeeController(
         @RequestBody
         newEmployee: Employee,
     ): ResponseEntity<Employee> {
+        newEmployee.id = null // enforce server-generated ids
         val employee = repository.save(newEmployee)
         val location =
             ServletUriComponentsBuilder
@@ -263,7 +264,7 @@ class EmployeeController(
 
     @PutMapping("/employees/{id}")
     @Operation(
-        summary = "Update or create an employee",
+        summary = "Update an existing employee",
         description = """
             HTTP Method: PUT
             
@@ -272,23 +273,21 @@ class EmployeeController(
             - Idempotent: Multiple identical requests produce the same final state
             
             BEHAVIOR:
-            Updates an existing employee or creates a new one if the ID doesn't exist. 
-            This demonstrates idempotent behavior, calling this endpoint multiple times with 
-            the same data results in the same final state (one employee with the specified data).
+            Updates an existing employee. This is an update-only operation. It will NOT create 
+            a new employee if the ID doesn't exist. This demonstrates idempotent behavior: calling 
+            this endpoint multiple times with the same data results in the same final state.
             
-            THREE SCENARIOS:
-            1. Update (200 OK): If employee exists, updates their data
-            2. Create (201 Created): If employee doesn't exist, creates new employee
-            3. Internal server error (500): If there is an unexpected error during processing
+            SECURITY:
+            The server owns resource identifiers. This endpoint only updates existing resources 
+            identified by the path parameter, preventing clients from controlling ID assignment.
             
             RESPONSE:
             - HTTP 200 (OK) if existing employee was updated
-            - HTTP 201 (Created) if new employee was created
-            - HTTP 500 (Internal Server Error) for unexpected errors
+            - HTTP 404 (Not Found) if employee doesn't exist
             - Content-Location header contains URI of the resource
             
             USE CASE:
-            Use this endpoint to update employee information or create an employee
+            Use this endpoint to update employee information for existing employees only.
         """,
     )
     @ApiResponses(
@@ -316,42 +315,20 @@ class EmployeeController(
                 ],
             ),
             ApiResponse(
-                responseCode = "201",
-                description = "New employee created",
-                content = [
-                    Content(
-                        mediaType = MediaType.APPLICATION_JSON_VALUE,
-                        schema = Schema(implementation = Employee::class),
-                        examples = [
-                            ExampleObject(
-                                name = "Created employee",
-                                value = """
-                                {
-                                    "name": "New Employee",
-                                    "role": "Analyst",
-                                    "id": 10
-                                }
-                                """,
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            ApiResponse(
-                responseCode = "500",
-                description = "Internal server error occurred",
+                responseCode = "404",
+                description = "Employee not found with the specified ID",
                 content = [
                     Content(
                         mediaType = MediaType.APPLICATION_JSON_VALUE,
                         examples = [
                             ExampleObject(
-                                name = "Internal server error",
+                                name = "Not found error",
                                 value = """
                                 {
                                     "timestamp": "2025-10-14T19:30:00.000+00:00",
-                                    "status": 500,
-                                    "error": "Internal Server Error",
-                                    "path": "/employees/1"
+                                    "status": 404,
+                                    "error": "Not Found",
+                                    "path": "/employees/999"
                                 }
                                 """,
                             ),
@@ -394,33 +371,27 @@ class EmployeeController(
         @RequestBody
         newEmployee: Employee,
         @Parameter(
-            description = "ID of the employee to update or create",
+            description = "ID of the employee to update",
             required = true,
             example = "1",
         )
         @PathVariable
         id: Long,
     ): ResponseEntity<Employee> {
+        val employee = repository.findById(id).orElseThrow { EmployeeNotFoundException(id) }
+        employee.name = newEmployee.name
+        employee.role = newEmployee.role
+        val saved = repository.save(employee)
         val location =
             ServletUriComponentsBuilder
                 .fromCurrentServletMapping()
                 .path("/employees/{id}")
                 .build(id)
                 .toASCIIString()
-        val (status, body) =
-            repository
-                .findById(id)
-                .map { employee ->
-                    employee.name = newEmployee.name
-                    employee.role = newEmployee.role
-                    repository.save(employee)
-                    HttpStatus.OK to employee
-                }.orElseGet {
-                    newEmployee.id = id
-                    repository.save(newEmployee)
-                    HttpStatus.CREATED to newEmployee
-                }
-        return ResponseEntity.status(status).header("Content-Location", location).body(body)
+        return ResponseEntity
+            .ok()
+            .header("Content-Location", location)
+            .body(saved)
     }
 
     @DeleteMapping("/employees/{id}")

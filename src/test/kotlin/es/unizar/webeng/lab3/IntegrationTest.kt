@@ -161,14 +161,14 @@ class IntegrationTest {
         }
 
         @Test
-        fun `should handle PUT request to non-existent id`() {
+        fun `should return 404 when PUT request to non-existent id`() {
             val newData = """
                 {"name":"Frank",
                 "role":"Manager"
                 }
                 """
 
-            val testId = 11L
+            val testId = 999L
 
             val response =
                 restTemplate.exchange(
@@ -178,10 +178,11 @@ class IntegrationTest {
                     String::class.java, // Use String to capture any response
                 )
 
-            // The API attempts to create with the specified ID, but JPA may have issues
-            // with explicit ID setting on entities with @GeneratedValue
-            // This test validates the behavior exists, even if it results in an error
-            assertThat(response.statusCode.value()).isIn(HttpStatus.CREATED.value(), HttpStatus.INTERNAL_SERVER_ERROR.value())
+            // PUT is update-only, so it should return 404 for non-existent resources
+            // The server owns resource identifiers. Clients cannot create via PUT
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+            assertThat(response.body).contains("\"status\":404")
+            assertThat(response.body).contains("\"error\":\"Not Found\"")
         }
 
         @Test
