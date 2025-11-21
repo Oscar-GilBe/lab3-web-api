@@ -4,6 +4,7 @@ springBoot = "3.5.3"
 ktlint = "13.1.0"
 springmockk = "4.0.2"
 springdoc = "2.8.13"
+openapiGenerator = "7.17.0" # latest stable release at 29.10.2025
 
 [plugins]
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin"}
@@ -11,6 +12,7 @@ kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotl
 kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin"}
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
+openapi-generator = { id = "org.openapi.generator", version.ref = "openapiGenerator" }
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "springBoot"}
