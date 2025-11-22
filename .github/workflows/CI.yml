@@ -19,7 +19,7 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@e6e38bacfdf1a337459f332974bb2327a31aaf4b
       - name: Generate OpenAPI Client
-        run: ./gradlew generateClient --no-daemon
+        run: ./gradlew generateClientFromLocalSpec --no-daemon
       - name: Build and Test with Gradle
         run: ./gradlew build --no-daemon
       - name: Test with Gradle

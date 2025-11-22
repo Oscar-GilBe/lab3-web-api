@@ -106,6 +106,25 @@ tasks.named("openApiGenerate") {
     dependsOn("downloadOpenApiSpec")
 }
 
+// Generate client from local spec without downloading
+tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("generateClientFromLocalSpec") {
+    group = "openapi"
+    description = "Generate Kotlin client from existing OpenAPI spec (no download required)"
+
+    generatorName = "kotlin" // Generate Kotlin client
+    inputSpec = file("openapi-spec.yaml").toURI().toString() // Path to downloaded spec
+    outputDir = "$buildDir/generated-client"
+    apiPackage = "es.unizar.webeng.lab3.client.api"
+    modelPackage = "es.unizar.webeng.lab3.client.model"
+    invokerPackage = "es.unizar.webeng.lab3.client"
+    configOptions =
+        mapOf(
+            "dateLibrary" to "java8",
+            "serializationLibrary" to "jackson",
+            "library" to "jvm-okhttp4",
+        )
+}
+
 // Convenience task
 tasks.register("generateClient") {
     group = "openapi"
