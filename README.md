@@ -108,6 +108,79 @@ After running tests, open:
 build/reports/tests/test/index.html
 ```
 
+## OpenAPI Client Generation
+
+The project includes tools to automatically generate a type-safe Kotlin client from the OpenAPI specification.
+
+### Quick Start
+
+```powershell
+# 1. Start the application
+.\gradlew bootRun
+
+# 2. In another terminal, generate the client
+.\gradlew generateClient
+```
+
+### Generated Files
+
+The client code is generated in `build/generated-client/`:
+
+```
+build/generated-client/
+├── src/main/kotlin/
+│   └── es/unizar/webeng/lab3/client/
+│       ├── api/
+│       │   └── EmployeeManagementApi.kt        # API client with all endpoints
+│       └── model/
+│           └── Employee.kt                     # Data models
+└── README.md                                   # Generated client documentation
+```
+
+### Using the Generated Client
+
+The `EmployeeManagementApi` provides type-safe methods for all endpoints:
+
+| Method                          | Description         | Endpoint                 |
+| ------------------------------- | ------------------- | ------------------------ |
+| `all()`                         | Get all employees   | `GET /employees`         |
+| `one(id)`                       | Get employee by ID  | `GET /employees/{id}`    |
+| `newEmployee(employee)`         | Create new employee | `POST /employees`        |
+| `replaceEmployee(id, employee)` | Update employee     | `PUT /employees/{id}`    |
+| `deleteEmployee(id)`            | Delete employee     | `DELETE /employees/{id}` |
+
+### Example Usage
+
+```kotlin
+val api = EmployeeManagementApi(basePath = "http://localhost:8080")
+
+// Create employee
+val employee = Employee(id = null, name = "John Doe", role = "Developer")
+val created = api.newEmployee(employee)
+
+// Get all employees
+val all = api.all()
+
+// Update employee
+val updated = Employee(id = created.id, name = "John Doe", role = "Senior Developer")
+api.replaceEmployee(created.id!!, updated)
+
+// Delete employee
+api.deleteEmployee(created.id!!)
+```
+
+### Running Client Tests
+
+```powershell
+.\gradlew test --tests GeneratedClientExampleTest
+```
+
+See `GeneratedClientExampleTest.kt` for comprehensive examples demonstrating:
+
+- Complete CRUD operations
+- Error handling (404 responses)
+- HTTP method idempotency testing
+- Non-idempotency testing
 
 ## Bonus opportunities
 Be the first to complete **at least two** of the following tasks to earn a bonus:
